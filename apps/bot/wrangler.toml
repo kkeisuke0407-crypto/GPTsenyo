@@ -1,0 +1,19 @@
+name = "gptsenyo-bot"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set via `wrangler secret put <NAME>`):
+#   LINE_CHANNEL_SECRET
+#   LINE_CHANNEL_ACCESS_TOKEN
+#   OPENAI_API_KEY
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+
+[vars]
+ENVIRONMENT = "development"
+LLM_MODEL = "gpt-4o-mini"
+FREE_MONTHLY_QUOTA = "3"
+LIGHT_MONTHLY_QUOTA = "10"

@@ -1,0 +1,9 @@
+# Wrangler のローカル dev 用 (`npm run dev`)
+# 本番では `wrangler secret put <NAME>` で投入する
+LINE_CHANNEL_SECRET=xxxxxxxx
+LINE_CHANNEL_ACCESS_TOKEN=xxxxxxxx
+OPENAI_API_KEY=sk-xxxxxxxx
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=xxxxxxxx
+STRIPE_SECRET_KEY=sk_live_xxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxx
