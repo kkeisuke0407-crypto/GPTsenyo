@@ -1,4 +1,4 @@
-import type { LineMessage } from "./client";
+import type { LineMessage, QuickReplyItem } from "./client";
 import { PLAN_LABEL, type Plan } from "../lib/env";
 
 export function welcomeMessage(): LineMessage {
@@ -47,6 +47,13 @@ export function quotaExceededMessage(plan: Plan, used: number, limit: number): L
 }
 
 export function planInfoMessage(): LineMessage {
+  const quickReply: { items: QuickReplyItem[] } = {
+    items: [
+      { type: "action", action: { type: "postback", label: "ライト ¥980", data: "plan=light", displayText: "ライトプランに加入" } },
+      { type: "action", action: { type: "postback", label: "スタンダード ¥1,980", data: "plan=standard", displayText: "スタンダードに加入" } },
+      { type: "action", action: { type: "postback", label: "プレミアム ¥4,980", data: "plan=premium", displayText: "プレミアムに加入" } },
+    ],
+  };
   return {
     type: "text",
     text:
@@ -55,9 +62,19 @@ export function planInfoMessage(): LineMessage {
       "・ライト（¥980/月）：月10回 + 数秘\n" +
       "・スタンダード（¥1,980/月）：全占術無制限\n" +
       "・プレミアム（¥4,980/月）：全部 + 個別深掘り\n\n" +
-      "決済は以下のページから安全にお手続きいただけます：\n" +
-      "https://example.com/plans\n\n" +
-      "※ 上記URLは公開準備中のサンプルです。",
+      "下のボタンからプランを選んでください👇",
+    quickReply,
+  };
+}
+
+export function checkoutLinkMessage(plan: Exclude<Plan, "free">, url: string): LineMessage {
+  return {
+    type: "text",
+    text:
+      `${PLAN_LABEL[plan]}の決済ページを発行しました🌙\n\n` +
+      `${url}\n\n` +
+      "決済が完了すると自動でプランが有効化されます。\n" +
+      "上限・解約はいつでもLINEまたは決済ページから可能です。",
   };
 }
 

@@ -1,5 +1,13 @@
+export type QuickReplyItem = {
+  type: "action";
+  action:
+    | { type: "postback"; label: string; data: string; displayText?: string }
+    | { type: "message"; label: string; text: string }
+    | { type: "uri"; label: string; uri: string };
+};
+
 export type LineMessage =
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; quickReply?: { items: QuickReplyItem[] } }
   | { type: "flex"; altText: string; contents: unknown };
 
 export async function replyMessage(
@@ -37,6 +45,30 @@ export async function pushMessage(
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`LINE push failed ${res.status}: ${body}`);
+  }
+}
+
+export async function multicastMessage(
+  accessToken: string,
+  to: string[],
+  messages: LineMessage[]
+): Promise<void> {
+  if (to.length === 0) return;
+  // LINE Multicast: 最大500件/コール
+  for (let i = 0; i < to.length; i += 500) {
+    const chunk = to.slice(i, i + 500);
+    const res = await fetch("https://api.line.me/v2/bot/message/multicast", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ to: chunk, messages }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`LINE multicast failed ${res.status}: ${body}`);
+    }
   }
 }
 

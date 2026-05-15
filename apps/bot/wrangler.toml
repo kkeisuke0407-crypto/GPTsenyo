@@ -17,3 +17,12 @@ ENVIRONMENT = "development"
 LLM_MODEL = "gpt-4o-mini"
 FREE_MONTHLY_QUOTA = "3"
 LIGHT_MONTHLY_QUOTA = "10"
+PUBLIC_BASE_URL = "https://example.com"
+LINE_FRIEND_URL = "https://lin.ee/xxxxxxxx"
+CONTACT_EMAIL = "support@example.com"
+OPERATOR_NAME = "（運営者名・記入してください）"
+OPERATOR_ADDRESS = "（運営者所在地・請求があった場合のみ開示）"
+
+# 毎朝 7:00 JST = 22:00 UTC（前日）に星座別運勢をプッシュ
+[triggers]
+crons = ["0 22 * * *"]

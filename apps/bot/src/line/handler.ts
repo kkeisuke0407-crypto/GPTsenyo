@@ -2,6 +2,7 @@ import { replyMessage, type LineMessage } from "./client";
 import {
   birthdateInvalidMessage,
   birthdateSavedMessage,
+  checkoutLinkMessage,
   divinationMessage,
   errorMessage,
   farewellMessage,
@@ -10,6 +11,8 @@ import {
   quotaExceededMessage,
   welcomeMessage,
 } from "./messages";
+import { createCheckoutSession } from "../stripe/checkout";
+import type { Plan } from "../lib/env";
 import {
   countMonthlySessions,
   getDb,
@@ -44,7 +47,14 @@ type LineUnfollowEvent = {
   source: { userId?: string };
 };
 
-type LineEvent = LineMessageEvent | LineFollowEvent | LineUnfollowEvent;
+type LinePostbackEvent = {
+  type: "postback";
+  replyToken: string;
+  source: { userId?: string };
+  postback: { data: string };
+};
+
+type LineEvent = LineMessageEvent | LineFollowEvent | LineUnfollowEvent | LinePostbackEvent;
 
 export async function handleLineEvents(env: Env, events: LineEvent[]): Promise<void> {
   await Promise.all(events.map((e) => handleOne(env, e).catch((err) => console.error("event error", err))));
@@ -67,10 +77,38 @@ async function handleOne(env: Env, event: LineEvent): Promise<void> {
     return;
   }
 
+  if (event.type === "postback") {
+    await handlePostback(env, event.replyToken, userId, event.postback.data);
+    return;
+  }
+
   if (event.type === "message" && event.message.type === "text") {
     const text = (event.message.text ?? "").trim();
     await routeTextMessage(env, event.replyToken, userId, text);
   }
+}
+
+async function handlePostback(
+  env: Env,
+  replyToken: string,
+  userId: string,
+  data: string
+): Promise<void> {
+  const params = new URLSearchParams(data);
+  const plan = params.get("plan");
+  if (plan === "light" || plan === "standard" || plan === "premium") {
+    try {
+      const url = await createCheckoutSession({ env, lineUserId: userId, plan });
+      await replyMessage(env.LINE_CHANNEL_ACCESS_TOKEN, replyToken, [
+        checkoutLinkMessage(plan as Exclude<Plan, "free">, url),
+      ]);
+    } catch (err) {
+      console.error("checkout error", err);
+      await replyMessage(env.LINE_CHANNEL_ACCESS_TOKEN, replyToken, [errorMessage()]);
+    }
+    return;
+  }
+  await replyMessage(env.LINE_CHANNEL_ACCESS_TOKEN, replyToken, [genericHelpMessage()]);
 }
 
 async function routeTextMessage(

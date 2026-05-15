@@ -11,6 +11,14 @@ export type Env = {
   SUPABASE_SERVICE_ROLE_KEY: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+  STRIPE_PRICE_LIGHT: string;
+  STRIPE_PRICE_STANDARD: string;
+  STRIPE_PRICE_PREMIUM: string;
+  PUBLIC_BASE_URL: string;
+  LINE_FRIEND_URL: string;
+  CONTACT_EMAIL: string;
+  OPERATOR_NAME: string;
+  OPERATOR_ADDRESS: string;
 };
 
 export type Plan = "free" | "light" | "standard" | "premium";

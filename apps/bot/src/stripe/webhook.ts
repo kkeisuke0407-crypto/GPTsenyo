@@ -1,11 +1,6 @@
 import { getDb, setUserPlan } from "../db/supabase";
-import type { Env, Plan } from "../lib/env";
-
-const PRICE_TO_PLAN: Record<string, Plan> = {
-  // Stripe Price ID → プラン名のマッピング
-  // 実運用時に環境変数化することを推奨
-  // 例: price_xxx_light: "light"
-};
+import type { Env } from "../lib/env";
+import { priceToPlan } from "./checkout";
 
 type StripeEvent = {
   id: string;
@@ -83,8 +78,8 @@ export async function handleStripeEvent(env: Env, event: StripeEvent): Promise<v
       const stripeCustomerId = (obj["customer"] as string | undefined) ?? undefined;
       const planUntil = extractPeriodEnd(obj);
       if (!lineUserId || !priceId) return;
-      const plan = PRICE_TO_PLAN[priceId];
-      if (!plan) {
+      const plan = priceToPlan(env, priceId);
+      if (!plan || plan === "free") {
         console.warn("Unmapped price id", priceId);
         return;
       }
