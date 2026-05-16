@@ -16,7 +16,7 @@ create table if not exists public.users (
 create table if not exists public.sessions (
   id              uuid primary key default gen_random_uuid(),
   line_user_id    text not null references public.users(line_user_id) on delete cascade,
-  type            text not null check (type in ('astrology','tarot','numerology')),
+  type            text not null check (type in ('astrology','tarot','numerology','sizhu','iching')),
   question        text not null,
   facts           jsonb not null,
   narration       text not null,

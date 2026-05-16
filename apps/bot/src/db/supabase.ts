@@ -13,7 +13,7 @@ export type UserRow = {
 
 export type SessionRow = {
   line_user_id: string;
-  type: "astrology" | "tarot" | "numerology";
+  type: "astrology" | "tarot" | "numerology" | "sizhu" | "iching";
   question: string;
   facts: Record<string, unknown>;
   narration: string;

@@ -1,0 +1,197 @@
+{
+  "name": "Selene Daily SNS Auto-Post",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 22 * * *" }
+          ]
+        }
+      },
+      "id": "trigger-morning",
+      "name": "Cron 7:00 JST (Morning)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 200]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 3 * * *" }
+          ]
+        }
+      },
+      "id": "trigger-noon",
+      "name": "Cron 12:00 JST (Noon)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 12 * * *" }
+          ]
+        }
+      },
+      "id": "trigger-night",
+      "name": "Cron 21:00 JST (Night)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 600]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "slot", "value": "morning" },
+            {
+              "name": "prompt",
+              "value": "あなたは占い師アシスタント『セレネ』。朝7時にXに投稿する『今日のテーマ』を90〜130字で書いてください。\n- 一人称や指示口調は避け、優しく語りかける\n- 具体的な行動を1つだけ提案（深呼吸3回、感謝3つ等）\n- 絵文字は🌙のみ1回\n- ハッシュタグ #朝活 #占い を末尾につける\n- 「絶対」「必ず」「100%」「保証」は禁止"
+            }
+          ]
+        }
+      },
+      "id": "slot-morning",
+      "name": "Set: Morning Slot",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "slot", "value": "noon" },
+            {
+              "name": "prompt",
+              "value": "あなたは占い師アシスタント『セレネ』。昼12時にXに投稿する『占術ミニ知識』を90〜130字で書いてください。\n- タロット/星占い/数秘/四柱推命/易のいずれか1つにフォーカス\n- 初心者にも分かる平易な言葉で\n- 末尾に #占い #占術 をつける\n- 「絶対」等の断定語は禁止"
+            }
+          ]
+        }
+      },
+      "id": "slot-noon",
+      "name": "Set: Noon Slot",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "slot", "value": "night" },
+            {
+              "name": "prompt",
+              "value": "あなたは占い師アシスタント『セレネ』。夜21時にXに投稿する『癒しメッセージ』を90〜130字で書いてください。\n- 一日を終える読者をやわらかく労う\n- 自己肯定のニュアンスを必ず含める\n- 絵文字は🌙のみ1回\n- ハッシュタグ #おやすみ #癒し をつける"
+            }
+          ]
+        }
+      },
+      "id": "slot-night",
+      "name": "Set: Night Slot",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 200,\n  \"temperature\": 0.85,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $json.prompt },\n    { \"role\": \"user\", \"content\": \"本日の投稿を生成してください。\" }\n  ]\n}",
+        "options": {}
+      },
+      "id": "openai",
+      "name": "OpenAI Chat Completion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [720, 400],
+      "credentials": {
+        "httpHeaderAuth": { "id": "openai-bearer", "name": "OpenAI Bearer" }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "text",
+              "value": "={{ $json.choices[0].message.content }}"
+            }
+          ]
+        }
+      },
+      "id": "extract-text",
+      "name": "Extract Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [940, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twitter.com/2/tweets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth1Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": $json.text\n}",
+        "options": {}
+      },
+      "id": "post-x",
+      "name": "Post to X (Twitter)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1160, 300],
+      "credentials": {
+        "oAuth1Api": { "id": "x-oauth1", "name": "X OAuth1" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/{{ $credentials.threadsBusinessAccount }}/threads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "media_type", "value": "TEXT" },
+            { "name": "text", "value": "={{ $json.text }}" }
+          ]
+        }
+      },
+      "id": "post-threads",
+      "name": "Post to Threads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1160, 500],
+      "credentials": {
+        "httpQueryAuth": { "id": "threads-token", "name": "Threads Access Token" }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 7:00 JST (Morning)": { "main": [[{ "node": "Set: Morning Slot", "type": "main", "index": 0 }]] },
+    "Cron 12:00 JST (Noon)":    { "main": [[{ "node": "Set: Noon Slot", "type": "main", "index": 0 }]] },
+    "Cron 21:00 JST (Night)":   { "main": [[{ "node": "Set: Night Slot", "type": "main", "index": 0 }]] },
+    "Set: Morning Slot": { "main": [[{ "node": "OpenAI Chat Completion", "type": "main", "index": 0 }]] },
+    "Set: Noon Slot":    { "main": [[{ "node": "OpenAI Chat Completion", "type": "main", "index": 0 }]] },
+    "Set: Night Slot":   { "main": [[{ "node": "OpenAI Chat Completion", "type": "main", "index": 0 }]] },
+    "OpenAI Chat Completion": { "main": [[{ "node": "Extract Text", "type": "main", "index": 0 }]] },
+    "Extract Text": {
+      "main": [[
+        { "node": "Post to X (Twitter)", "type": "main", "index": 0 },
+        { "node": "Post to Threads", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

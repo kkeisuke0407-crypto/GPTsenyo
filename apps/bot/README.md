@@ -6,33 +6,40 @@ AI占い LINE Bot (Cloudflare Workers + Hono + TypeScript)
 
 ```
 src/
-├── index.ts              # ルーティング (LP / 法令 / webhook / scheduled)
-├── lib/env.ts            # 環境変数・プラン定義
+├── index.ts              # ルーティング + scheduled (cron 分岐)
+├── lib/env.ts            # 環境変数・プラン定義・価格表
 ├── line/
 │   ├── client.ts         # LINE API (reply / push / multicast) + 署名検証
-│   ├── handler.ts        # message / follow / unfollow / postback ルーティング
+│   ├── handler.ts        # message / follow / unfollow / postback
 │   └── messages.ts       # 返信テンプレ (Quick Reply 含む)
 ├── divination/
-│   ├── astrology.ts      # 太陽星座（生年月日から決定論的算出）
-│   ├── tarot.ts          # 大アルカナ22枚3枚スプレッド (crypto.getRandomValues)
-│   ├── numerology.ts     # ライフパスナンバー（マスター数 11/22/33 対応）
+│   ├── astrology.ts      # 太陽星座（立春境界対応）
+│   ├── tarot.ts          # 大アルカナ22枚3枚スプレッド
+│   ├── numerology.ts     # ライフパスナンバー (マスター数 11/22/33)
+│   ├── sizhu.ts          # 四柱推命 (年柱・月柱・日柱・時柱オプション)
+│   ├── iching.ts         # 易 (擲銭法 + 64卦 + 変爻 + 之卦)
 │   └── types.ts
 ├── llm/
 │   ├── client.ts         # OpenAI Chat Completions
-│   └── prompts.ts        # ペルソナ + 占術別ガイド + 後処理(禁止語・安全トリガ)
-├── db/supabase.ts        # users / sessions / stripe_events 操作
+│   └── prompts.ts        # ペルソナ + 5占術別ガイド + 安全後処理
+├── db/
+│   ├── supabase.ts       # users / sessions / stripe_events 操作
+│   └── stats.ts          # MAU/MRR/セッション統計
 ├── stripe/
-│   ├── checkout.ts       # Checkout Session 作成 + Price ID マッピング
+│   ├── checkout.ts       # Checkout Session 作成
 │   └── webhook.ts        # 署名検証 + サブスク状態同期 + 冪等化
 ├── cron/
-│   └── daily-horoscope.ts  # 毎朝の星座別運勢を multicast
+│   ├── daily-horoscope.ts  # 毎朝の星座別運勢 multicast
+│   └── weekly-digest.ts    # 毎週月曜 有料会員向け週次ダイジェスト
 └── pages/
-    ├── layout.ts         # 共通HTMLレイアウト
-    ├── lp.ts             # ランディングページ
-    ├── legal.ts          # 特商法 / プライバシー / 利用規約
-    └── checkout-result.ts  # 決済完了 / キャンセル
+    ├── layout.ts             # 共通HTMLレイアウト
+    ├── lp.ts                 # ランディングページ
+    ├── legal.ts              # 特商法 / プライバシー / 利用規約
+    ├── checkout-result.ts    # 決済完了 / キャンセル
+    └── admin.ts              # 管理ダッシュボード (MAU/MRR/グラフ)
 sql/schema.sql            # Supabase 初期スキーマ
-scripts/                  # 動作確認スクリプト (smoke / render-check)
+scripts/                  # 動作確認 (smoke/render-check/admin-check)
+                          # + Rich Menu セットアップ (setup-rich-menu.ts)
 ```
 
 ## セットアップ
@@ -88,6 +95,7 @@ npx wrangler secret put STRIPE_WEBHOOK_SECRET
 npx wrangler secret put STRIPE_PRICE_LIGHT
 npx wrangler secret put STRIPE_PRICE_STANDARD
 npx wrangler secret put STRIPE_PRICE_PREMIUM
+npx wrangler secret put ADMIN_TOKEN
 
 npm run typecheck
 npm run deploy
@@ -98,12 +106,14 @@ npm run deploy
 ### LINE Bot
 1. 友だち追加直後にウェルカムメッセージ
 2. `1992-04-15` 送信 → 誕生日登録
-3. `タロット 仕事の進め方は？` → 3枚引き + LLM鑑定文
-4. `星占い 今月のテーマ` → 太陽星座ベース
-5. `数秘 私の本質` → ライフパス
-6. `プラン` → Quick Reply で3プラン提示
-7. 各プランをタップ → Stripe Checkout URL 発行（自動）
-8. `退会` → 全データ削除
+3. `タロット 仕事の進め方は？` → 3枚引き + LLM鑑定文（無料〜）
+4. `星占い 今月のテーマ` → 太陽星座ベース（無料〜）
+5. `数秘 私の本質` → ライフパス（無料〜）
+6. `四柱推命 今の流れ` → 命式ベース（ライト〜）
+7. `易 人間関係について` → 周易64卦（ライト〜）
+8. `プラン` → Quick Reply で3プラン提示
+9. 各プランをタップ → Stripe Checkout URL 発行（自動）
+10. `退会` → 全データ削除（purge_user RPC）
 
 ### Web
 - `GET /` … ランディングページ（LINE友達追加CTA）
@@ -111,26 +121,41 @@ npm run deploy
 - `GET /legal/privacy` … プライバシーポリシー
 - `GET /legal/terms` … 利用規約
 - `GET /checkout/success` / `GET /checkout/cancel` … 決済結果ページ
+- `GET /admin?token=<ADMIN_TOKEN>` … 管理ダッシュボード（MAU/MRR/14日チャート/占術別内訳）
 - `GET /healthz` … ヘルスチェック
 
 ### Cron
-毎日 22:00 UTC（= 7:00 JST）に `scheduled` ハンドラが起動し、生年月日登録済みユーザーに星座別運勢を multicast 配信します。
-ローカルテスト: `npx wrangler dev --test-scheduled` → `curl http://localhost:8787/__scheduled`
+- `0 22 * * *` (毎朝7:00 JST) … `daily-horoscope` で生年月日登録済みユーザーに星座運勢 multicast
+- `0 22 * * 0` (毎週月曜7:00 JST) … `weekly-digest` で有料会員向けに週次ダイジェスト multicast
+
+ローカルテスト: `npx wrangler dev --test-scheduled` → `curl http://localhost:8787/__scheduled?cron=0+22+*+*+*`
+
+### 管理者用スクリプト
+- `LINE_CHANNEL_ACCESS_TOKEN=xxx npx tsx scripts/setup-rich-menu.ts ./menu.png`
+  - LINE Rich Menu を一括設定（既存メニューは自動削除）
+  - 画像サイズ: 2500×1686 (3列2行)
 
 ### 検証スクリプト
-- `npx tsx scripts/smoke.ts` … 占術エンジン3種の動作確認
-- `npx tsx scripts/render-check.ts` … HTMLページのレンダリング確認
+- `npx tsx scripts/smoke.ts` … 占術エンジン5種の動作確認
+- `npx tsx scripts/render-check.ts` … LP/法令/チェックアウト HTML 検証
+- `npx tsx scripts/admin-check.ts` … 管理ダッシュボード モック描画
 - `npm run typecheck` … TypeScript 厳格型チェック
 
 ## コスト目安
 
 | 項目 | コスト |
 |---|---|
-| Cloudflare Workers | 無料枠 10万req/日 |
+| Cloudflare Workers | 無料枠 10万req/日（Cron含む） |
 | Supabase | 無料枠 (DB 500MB / 5万MAU) |
 | OpenAI GPT-4o-mini | 100ユーザー想定 月¥3,000〜¥8,000 |
 | LINE Messaging API | 月200通まで無料 / 月50,000通 ¥5,000 |
 | **合計（100ユーザー時）** | **約 ¥8,000〜¥13,000/月** |
+
+100名想定のLINE月間メッセージ数試算:
+- 個別鑑定返信: 100名 × 平均月15回 = 1,500通
+- 毎朝の運勢: 100名 × 30日 = 3,000通
+- 週次ダイジェスト（有料50名想定）: 50名 × 4週 = 200通
+- 合計: 約 **4,700通/月** → 月50,000通プラン（¥5,000）で十分余裕あり
 
 ## 注意点
 

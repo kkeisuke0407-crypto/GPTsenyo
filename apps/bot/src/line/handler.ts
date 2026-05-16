@@ -24,6 +24,8 @@ import {
 import { buildAstrologyContext } from "../divination/astrology";
 import { buildTarotContext } from "../divination/tarot";
 import { buildNumerologyContext } from "../divination/numerology";
+import { buildSizhuContext } from "../divination/sizhu";
+import { buildIChingContext } from "../divination/iching";
 import type { DivinationContext } from "../divination/types";
 import { buildPromptMessages, postProcessNarration } from "../llm/prompts";
 import { chatCompletion } from "../llm/client";
@@ -155,9 +157,14 @@ async function routeTextMessage(
 
   const user = await getUser(db, userId);
   const question = stripCommand(text);
+  const plan = user?.plan ?? "free";
 
   // 生年月日が必要な占術での未登録時案内
-  if ((divinationKind === "astrology" || divinationKind === "numerology") && !user?.birthdate) {
+  const needsBirthdate =
+    divinationKind === "astrology" ||
+    divinationKind === "numerology" ||
+    divinationKind === "sizhu";
+  if (needsBirthdate && !user?.birthdate) {
     await replyMessage(env.LINE_CHANNEL_ACCESS_TOKEN, replyToken, [
       {
         type: "text",
@@ -167,8 +174,20 @@ async function routeTextMessage(
     return;
   }
 
+  // プレミアム限定占術（四柱推命・易）
+  if ((divinationKind === "sizhu" || divinationKind === "iching") && plan === "free") {
+    await replyMessage(env.LINE_CHANNEL_ACCESS_TOKEN, replyToken, [
+      {
+        type: "text",
+        text:
+          "この占術はライト以上のプランでお楽しみいただけます🌙\n" +
+          "「プラン」と送ると料金プランをご案内します。",
+      },
+    ]);
+    return;
+  }
+
   // クォータチェック
-  const plan = user?.plan ?? "free";
   const limit = PLAN_QUOTA[plan];
   const used = await countMonthlySessions(db, userId);
   if (used >= limit) {
@@ -180,12 +199,22 @@ async function routeTextMessage(
 
   // 占術コンテキスト構築
   let ctx: DivinationContext;
-  if (divinationKind === "tarot") {
-    ctx = buildTarotContext(question);
-  } else if (divinationKind === "astrology") {
-    ctx = buildAstrologyContext(new Date(user!.birthdate!), question);
-  } else {
-    ctx = buildNumerologyContext(new Date(user!.birthdate!), question);
+  switch (divinationKind) {
+    case "tarot":
+      ctx = buildTarotContext(question);
+      break;
+    case "astrology":
+      ctx = buildAstrologyContext(new Date(user!.birthdate!), question);
+      break;
+    case "numerology":
+      ctx = buildNumerologyContext(new Date(user!.birthdate!), question);
+      break;
+    case "sizhu":
+      ctx = buildSizhuContext(new Date(user!.birthdate!), question);
+      break;
+    case "iching":
+      ctx = buildIChingContext(question);
+      break;
   }
 
   let replyMsg: LineMessage;
@@ -223,12 +252,14 @@ function detectDivinationKind(text: string): DivinationContext["type"] | null {
   if (text.startsWith("タロット")) return "tarot";
   if (text.startsWith("星占い") || text.startsWith("占星術")) return "astrology";
   if (text.startsWith("数秘")) return "numerology";
+  if (text.startsWith("四柱推命") || text.startsWith("命式")) return "sizhu";
+  if (text.startsWith("易") || text.startsWith("周易") || text.startsWith("イーチン")) return "iching";
   return null;
 }
 
 function stripCommand(text: string): string {
   return text
-    .replace(/^(タロット|星占い|占星術|数秘|占い)[:：\s]*/, "")
+    .replace(/^(タロット|星占い|占星術|数秘|四柱推命|命式|周易|易|イーチン|占い)[:：\s]*/, "")
     .trim();
 }
 

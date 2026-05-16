@@ -1,4 +1,4 @@
-export type DivinationType = "astrology" | "tarot" | "numerology";
+export type DivinationType = "astrology" | "tarot" | "numerology" | "sizhu" | "iching";
 
 export type DivinationContext = {
   type: DivinationType;

@@ -10,3 +10,4 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxx
 STRIPE_PRICE_LIGHT=price_xxxxxxxx
 STRIPE_PRICE_STANDARD=price_xxxxxxxx
 STRIPE_PRICE_PREMIUM=price_xxxxxxxx
+ADMIN_TOKEN=please-set-a-long-random-string

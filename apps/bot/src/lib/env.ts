@@ -19,6 +19,14 @@ export type Env = {
   CONTACT_EMAIL: string;
   OPERATOR_NAME: string;
   OPERATOR_ADDRESS: string;
+  ADMIN_TOKEN: string;
+};
+
+export const PLAN_PRICE_JPY: Record<Plan, number> = {
+  free: 0,
+  light: 980,
+  standard: 1980,
+  premium: 4980,
 };
 
 export type Plan = "free" | "light" | "standard" | "premium";
